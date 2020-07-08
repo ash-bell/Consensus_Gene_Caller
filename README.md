@@ -1,5 +1,5 @@
 # Consensus Gene Caller
-This program attempts to follow the SEA-PHAGES bioinformatic protocol to automate its phage gene annotation. The goal of this program is to reduce the amount of time needed to accurately annotate phage genomes through a customised automation script. The end result produces a spreadsheet with statistics of each gene call to provide information to include or exclude a gene in a final genome annotation. More information about the SEA-PHAGES annotation protocol can be seen [here](https://seaphagesbioinformatics.helpdocsonline.com/home) or reading the PDF included. The algorthim as also designed to be modular, allowing for the additional gene-calling prgrams to be easily included or additional statistical tests.
+This program attempts to follow the [SEA-PHAGES](https://seaphages.org/) bioinformatic protocol to automate its phage gene annotation. The goal of this program is to reduce the amount of time needed to accurately annotate phage genomes through a customised automation script. The end result produces a spreadsheet with statistics of each gene call to provide information to include or exclude a gene in a final genome annotation. More information about the SEA-PHAGES annotation protocol can be seen [here](https://seaphagesbioinformatics.helpdocsonline.com/home). The algorthim as also designed to be modular, allowing for the additional gene-calling prgrams to be easily included or additional statistical tests.
 
 ## Installation
 The goal is to make installation of this algorithim as painless as possible, therefore coda installations are preferred. To install conda follow this [link](https://docs.conda.io/projects/conda/en/latest/user-guide/install/)
@@ -9,8 +9,9 @@ A new environment can be created:
 ```
 conda create -n seaphages -c bioconda -c hcc -c anaconda -c conda-forge prodigal metagene_annotator glimmer fraggenescan hmmer trnascan-se phanotate biopython pandas numpy
 conda activate seaphages
+git clone https://github.com/ash-bell/Consensus_Gene_Caller.git
 ```
-If you want to run glimmer3 you will need ELPH : Estimated Locations of Pattern Hits from [here](https://cbcb.umd.edu/software/ELPH/). Download and install it as recomended and add it to your PATH. [How?](https://opensource.com/article/17/6/set-path-linux)
+If you want to run glimmer3 you will need ELPH : Estimated Locations of Pattern Hits from [here](https://cbcb.umd.edu/software/ELPH/). Download and install it as recomended and add it to your PATH. How? [Here](https://opensource.com/article/17/6/set-path-linux)
 
 
 ## Quick start
@@ -92,6 +93,6 @@ The paper refers to all locations a gene may start as a start codon and uses the
 `dataframe["total_score"] = dataframe[["rbs_score", "score", "duplicate", "length_penality", "operon", "overlap_pen"]].fillna(0).sum(axis=1) - dataframe["truncated"].fillna(0)`
 
 ## Future plans
-Include consenus tRNA caller with aragorn, tRNAScan-se
-hmmsearch against interproscan and Pfam
-diamond blast against nr
+* Include consenus tRNA caller with aragorn, tRNAScan-se
+* hmmsearch against interproscan and Pfam
+* diamond blast against nr
