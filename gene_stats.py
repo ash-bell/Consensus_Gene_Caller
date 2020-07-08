@@ -61,10 +61,23 @@ def length_pen(dataframe):
         If Gene Length is between 90 and 75 bps, -4 points
         If Gene Length is smaller than 75 bps, -9 points (as no gene as been recorded to be smaller than 27 amino acids long)
     '''
-    score_bins = [0, 74, 89, 119, 149, 199, 99999]
-    penality = [-9, -4, -3, -2, -1, 0]
+    score_bins = [0, 89, 119, 149, 199, 99999]
+    penality = [-4, -3, -2, -1, 0]
     dataframe["length_penality"] = pd.cut(dataframe["length"], score_bins, labels=penality)
-    return(dataframe)
+
+
+def eval_pen(dataframe):
+    '''
+    Create a penality system for e-values from pVOGs.
+        Scoring
+        -------
+        If e-value is < 1E-50 bps, 3 points
+        If e-value is between 1E-20 and E-50 bps, 2 point
+        If e-value is between 1E-10 and 1E-20 bps, 1 points
+    '''
+    score_bins = [0, 1E-50, 1E-20, 1E-10, 10]
+    penality = [3, 2, 1, 0]
+    dataframe["e-value_penality"] = pd.cut(dataframe["e-value"], score_bins, labels=penality)
 
 
 def gene_intersection(row):
@@ -88,18 +101,19 @@ def count_overlap(dataframe):
     dataframe["overlap"] = abs(overlap_counter - dataframe["length"])
     dataframe["operon"] = operon_counter
     score_bins = [-999999, 10, 40, 70, 100, 999999]
-    penality = [0, -1, -2, -3, -9]
+    penality = [0, -1, -2, -3, -4]
     dataframe["overlap_pen"] = pd.cut(dataframe["overlap"], score_bins, labels=penality)
     dataframe["total_score"] = dataframe[["rbs_score", "score", "duplicate", "length_penality", "operon", "overlap_pen"]].fillna(0).sum(axis=1) - dataframe["truncated"].fillna(0)
-    dataframe.to_csv(f"{args.output_folder}/gene_statistics.csv", index=None)
-    print(f"{clr.colours.BGreen}File created at {args.output_folder}/gene_statistics.csv{clr.colours.Colour_Off}")
+    dataframe.to_csv(f"{args.output_folder}/gene_statistics.tsv", sep = "\t", index=None)
+    print(f"{clr.colours.BGreen}File created at {args.output_folder}/gene_statistics.tsv{clr.colours.Colour_Off}")
 
 
 def main(args):
     create_output_dir(args.output_folder)
-    df = pd.read_csv(f"{args.infile}")
+    df = pd.read_csv(f"{args.infile}", sep="\t")
     df["length"] = df.apply(lambda row: gene_length(row), axis=1)
     length_pen(df)
+    eval_pen(df)
     df["interval"] = df.apply(lambda row: gene_intersection(row), axis=1)
     count_overlap(df)
 
