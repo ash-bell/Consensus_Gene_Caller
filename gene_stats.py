@@ -77,7 +77,7 @@ def eval_pen(dataframe):
     '''
     score_bins = [0, 1E-50, 1E-20, 1E-10, 10]
     penality = [3, 2, 1, 0]
-    dataframe["e-value_penality"] = pd.cut(dataframe["e-value"], score_bins, labels=penality)
+    dataframe["e-value_penality"] = pd.cut(dataframe[["Pfam_e-val", "pVOG_e-val"]].min(axis=1), score_bins, labels=penality)
 
 
 def gene_intersection(row):

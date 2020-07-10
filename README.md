@@ -15,8 +15,9 @@ If you want to run glimmer3 you will need ELPH : Estimated Locations of Pattern 
 
 
 ## Quick start
+**Note:** This program can only process one contig at a time. If you have multiple contigs, please run them seperately.
 ```
-./genecaller.py -i phage.fasta -o output_dir -gc all -db pvog -p ~/databases/pvog_database.hmm
+./genecaller.py -i phage.fasta -o output_dir -gc all -db pvog pfam -p ~/databases/pvog_database.hmm -f ~/databases/Pfam-A.hmm
 ./gene_stats.py -i output_dir/gene_clusters.tsv -o outdir2
 ```
 
@@ -35,10 +36,10 @@ If you want to run glimmer3 you will need ELPH : Estimated Locations of Pattern 
 
 
 ## Walkthrough
-The program consists of two python scripts, `genecaller.py` and `gene_stats.py`. `genecaller.py` automates the calling of five (I would like to include more in the future) different gencallers prodigal, glimmer, metagene annotator, phanotate and fraggenescan. The output of these are collated and duplicate gene calls removed. The resulting genes can be searched against the Prokaryotic Virus Orthologous Groups (pVOGs) database to find simular genes. It is not required to use all the above listed gencallers. Using `-gc` option, you can specify which genecallers you want. For example `-gc prodigal mga` will just run prodigal and mga. The default is `-gc all`.
+The program consists of two python scripts, `genecaller.py` and `gene_stats.py`. `genecaller.py` automates the calling of five (I would like to include more in the future) different gencallers prodigal, glimmer, metagene annotator, phanotate and fraggenescan. The output of these are collated and duplicate gene calls removed. The resulting genes can be searched against the Prokaryotic Virus Orthologous Groups (pVOGs) and or Pfam database to find simular genes. It is not required to use all the above listed gencallers. Using `-gc` option, you can specify which genecallers you want. For example `-gc prodigal mga` will just run prodigal and mga. The default is `-gc all`.
 
 
-By default the search using hidden markov models of the gene call outputs against the pVOG database is off, but can be specified with `-db pvog -p <location of pVOG database`. This requires the pVOGs database to be setup before hand. The pVOGs database can be downloaded from [here](http://dmk-brain.ecn.uiowa.edu/pVOGs/downloads.html) and the subsequent annotations interpreted from their abbrevations - VOG0002 to "major coat protein" for example. There are plans to include searches against the interpro database and BLAST against the nr database in the future.
+By default the search using hidden markov models of the gene call outputs against the pVOG/Pfam database is off, but can be specified with `-db pvog -p <location of pVOG database` and `-db pfam -f <location of pVOG database` or both (see quickstart). This requires the pVOGs and or Pfam database to be setup before hand. The pVOGs database can be downloaded from [here](http://dmk-brain.ecn.uiowa.edu/pVOGs/downloads.html) and the subsequent annotations interpreted from their abbrevations - VOG0002 to "major coat protein" for example. There are plans to include searches against the interpro databases and BLAST against the nr database in the future.
 
 To get the pVOG database working, download the full database (or any subsection), and unzip the folder. Concatinate all the .hmm files and run hmmpress on it to create a database. For example:
 ```
@@ -46,6 +47,9 @@ tar -xvzf AllvogHMMprofiles.tar.gz
 cat AllvogHMMprofiles/*.hmm > pVOG
 hmmpress pVOG
 ```
+
+If you want the pFAM-A database, go to ftp://ftp.ebi.ac.uk/pub/databases/Pfam/releases and select the lastest release (Pfam33.1/		26/06/2020, 12:02:00 was the lastest for me) and download Pfam-A.hmm.gz. Using `gunzip Pfam-A.hmm.gz` you can unzip the file the database is ready to use.
+
 
 `gene_stats.py` attempts to closely follow the current annotation protocol popularised by the SEA-PHAGE consortium. You can find more details [here](https://doi.org/10.3390/ijms20143391), which I refer to as the "paper". To use this tool, you just need to specify the output file from `genecaller.py` (the gene_clusters.tsv file) and an output file. The file consists of a spreadsheet with various gene statistics and their scores suggested by the paper to include or exclude a gene from final annotation. Again, this is just a tool to assist in annotation and should not be treated as a final polish product. I will go through each of the methods in the paper and show how I have attempted to impliment a coding alternative.
 
@@ -66,7 +70,7 @@ Determining coding potential bioinformatically is diffcult as the output is a gr
 
 
 ### 4.1.3. Sequence Similarity Matches
-BLASTing or HMMing against a database is timeconsuming and can require setup of large databases to run locally. Therefore, I have made this step optional and default off (although recomended) within this program. The paper suggest doing a pBLAST against the NCBI’s non-redundant (nr) database and include searches of Pfam and Interpro with HMMer. Hits smaller that E-50 are awarded 3 points, between E-50 and E-20 2 points and between E-20 and E-10 1 point. I have implimented the same point system with a HMMer search of the Prokaryotic Virus Orthologous Groups (pVOGs). I plan to include a Pfam and Interpro HMMer search in the future and maybe a way to integrate a BLAST search against the nr database. (I don't want to do this immediatly due to the nr database size and the time it takes to search, but could provide a script to integrate the data).
+BLASTing or HMMing against a database is timeconsuming and can require setup of large databases to run locally. Therefore, I have made this step optional and default off (although recomended) within this program. The paper suggest doing a pBLAST against the NCBI’s non-redundant (nr) database and include searches of Pfam and Interpro with HMMer. Hits smaller that E-50 are awarded 3 points, between E-50 and E-20 2 points and between E-20 and E-10 1 point. I have implimented the same point system with a HMMer search of the Prokaryotic Virus Orthologous Groups (pVOGs) and Pfam. I plan to include an Interpro HMMer search in the future and maybe a way to integrate a BLAST search against the nr database. (I don't want to do this immediatly due to the nr database size and the time it takes to search, but could provide a script to integrate the data). If hits for the same gene are found against both the Pfam and pVOG database, only the one with the smallest (therefore best) e-value is included in the final scoring system. (Genes with hits from multiple datbases are not double counted)
 
 
 ### 4.1.4. Overlap and Operons
@@ -96,3 +100,4 @@ The paper refers to all locations a gene may start as a start codon and uses the
 * Include consenus tRNA caller with aragorn, tRNAScan-se
 * hmmsearch against interproscan and Pfam
 * diamond blast against nr
+* Parser for GeneMark family

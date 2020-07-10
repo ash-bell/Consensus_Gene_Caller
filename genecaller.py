@@ -25,8 +25,9 @@ def my_args():
     parser.add_argument("--outdir", "-o", dest="output_folder", required=True, help="Output folder where the files will be created or generated if it doesn't exist")
     parser.add_argument("--genecallers", "-gc", dest="genecallers",  nargs="+", default=["all"], choices=["prodigal", "mga", "glimmer", "fraggenescan", "phanotate", "all"],
                         help="Select genecaller(s)")
-    parser.add_argument("--database", "-db", dest="database", default=["None"], nargs="+", choices=["pvog"], help="Select Database")
+    parser.add_argument("--database", "-db", dest="database", default=["None"], nargs="+", choices=["pvog", "pfam"], help="Select Database")
     parser.add_argument("--pvog", "-p", dest="pvog", default=["None"], help="pVOG HMM database file")
+    parser.add_argument("--pfam", "-f", dest="pfam", default=["None"], help="Pfam HMM database file")
     # Parse arguments
     args = parser.parse_args()
 
@@ -243,32 +244,56 @@ def translateSeq(seq_record):
         SeqIO.write(seq_record, output_handle, "fasta")
 
 
-def runHMMsearch():
+def runpVOGsearch():
     if args.pvog == ["None"]:
         print(f"{clr.colours.BRed}no pVOG database provided, HMM search against pVOG database will not be run{clr.colours.Colour_Off}")
-    elif os.path.isfile(f"{args.output_folder}/hits.tbl"):
-        pVOGS = pd.read_csv(f"{args.output_folder}/hits.tbl", sep="\s+", comment="#", engine='python', header=None,
-                            usecols=[0, 2, 4], names=["gene", "pVOG", "e-value"])
-        pVOGS.sort_values("e-value", inplace=True)
+    elif os.path.isfile(f"{args.output_folder}/pVOG_hits.tbl"):
+        pVOGS = pd.read_csv(f"{args.output_folder}/pVOG_hits.tbl", sep="\s+", comment="#", engine='python', header=None,
+                            usecols=[0, 2, 4], names=["gene", "pVOG_hits", "pVOG_e-val"])
+        pVOGS.sort_values("pVOG_e-val", inplace=True)
         pVOGS.drop_duplicates(subset="gene", keep="first", inplace=True)
         df = pd.read_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
         data = df.merge(pVOGS, on="gene", how="outer")
         data.to_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
-        pVOGS.to_csv(f"{args.output_folder}/pVOGs.tsv", sep="\t")
     elif os.path.isfile(f"{args.pvog}"):
         print(f"{clr.colours.BGreen}Searching protein coding regions against the pVOG database {clr.colours.Colour_Off}")
-        cmd = f"""hmmsearch --tblout {args.output_folder}/hits.tbl --notextw -E 10 {args.pvog} {args.output_folder}/all_gene_calls.faa"""
+        cmd = f"""hmmsearch --tblout {args.output_folder}/pVOG_hits.tbl --notextw -E 10 {args.pvog} {args.output_folder}/all_gene_calls.faa"""
         stdout, stderr = execute(cmd)
-        pVOGS = pd.read_csv(f"{args.output_folder}/hits.tbl", sep="\s+", comment="#", engine='python', header=None,
-                            usecols=[0, 2, 4], names=["gene", "pVOG", "e-value"])
-        pVOGS.sort_values("e-value", inplace=True)
+        pVOGS = pd.read_csv(f"{args.output_folder}/pVOG_hits.tbl", sep="\s+", comment="#", engine='python', header=None,
+                            usecols=[0, 2, 4], names=["gene", "pVOG_hits", "pVOG_e-val"])
+        pVOGS.sort_values("pVOG_e-val", inplace=True)
         pVOGS.drop_duplicates(subset="gene", keep="first", inplace=True)
         df = pd.read_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
         data = df.merge(pVOGS, on="gene", how="outer")
         data.to_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
-        pVOGS.to_csv(f"{args.output_folder}/pVOGs.tsv", sep="\t")
     else:
         print(f"""{clr.colours.BRed}'{args.pvog}' should be a file path and is not. Please specify the pVOG database filepath{clr.colours.Colour_Off}""")
+
+
+def runPfamsearch():
+    if args.pfam == ["None"]:
+        print(f"{clr.colours.BRed}no Pfam database provided, HMM search against Pfam database will not be run{clr.colours.Colour_Off}")
+    elif os.path.isfile(f"{args.output_folder}/Pfam_hits.tbl"):
+        Pfam = pd.read_csv(f"{args.output_folder}/Pfam_hits.tbl", sep="\s+", comment="#", engine='python', header=None,
+                            usecols=[0, 2, 4], names=["gene", "Pfam_hit", "Pfam_e-val"])
+        Pfam.sort_values("Pfam_e-val", inplace=True)
+        Pfam.drop_duplicates(subset="gene", keep="first", inplace=True)
+        df = pd.read_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
+        data = df.merge(Pfam, on="gene", how="outer")
+        data.to_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
+    elif os.path.isfile(f"{args.pfam}"):
+        print(f"{clr.colours.BGreen}Searching protein coding regions against the Pfam-A database {clr.colours.Colour_Off}")
+        cmd = f"""hmmsearch --tblout {args.output_folder}/Pfam_hits.tbl --notextw -E 10 {args.pfam} {args.output_folder}/all_gene_calls.faa"""
+        stdout, stderr = execute(cmd)
+        Pfam = pd.read_csv(f"{args.output_folder}/Pfam_hits.tbl", sep="\s+", comment="#", engine='python', header=None,
+                            usecols=[0, 2, 4], names=["gene", "Pfam_hit", "Pfam_e-val"])
+        Pfam.sort_values("Pfam_e-val", inplace=True)
+        Pfam.drop_duplicates(subset="gene", keep="first", inplace=True)
+        df = pd.read_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
+        data = df.merge(Pfam, on="gene", how="outer")
+        data.to_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
+    else:
+        print(f"""{clr.colours.BRed}'{args.pfam}' should be a file path and is not. Please specify the Pfam database filepath{clr.colours.Colour_Off}""")
 
 
 def execute(bash):
@@ -305,8 +330,18 @@ def main(args):
         print(f"{clr.colours.BWhite}No databases indicated to search{clr.colours.Colour_Off}")
 
     if "pvog" in args.database:
-        translateSeq(getSeq(combineGeneClusters()))
-        runHMMsearch()
+        if os.path.isfile(f"{args.output_folder}/all_gene_calls.faa"):
+            runpVOGsearch()
+        else:
+            translateSeq(getSeq(combineGeneClusters()))
+            runpVOGsearch()
+    if "pfam" in args.database:
+        if os.path.isfile(f"{args.output_folder}/all_gene_calls.faa"):
+            runPfamsearch()
+        else:
+            translateSeq(getSeq(combineGeneClusters()))
+            runPfamsearch()
+
     print(f"{clr.colours.BGreen}See file: {args.output_folder}/gene_clusters.tsv {clr.colours.Colour_Off}")
 
 
