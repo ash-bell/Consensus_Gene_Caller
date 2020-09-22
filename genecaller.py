@@ -25,6 +25,7 @@ def my_args():
     parser.add_argument("--outdir", "-o", dest="output_folder", required=True, help="Output folder where the files will be created or generated if it doesn't exist")
     parser.add_argument("--genecallers", "-gc", dest="genecallers",  nargs="+", default=["all"], choices=["prodigal", "mga", "glimmer", "fraggenescan", "phanotate", "all"],
                         help="Select genecaller(s)")
+    parser.add_argument("--trna", dest="trna", nargs="+", default=["all"], choices=["all", "aragorn", "trnascan"], help="Select tRNA Scanner")
     parser.add_argument("--database", "-db", dest="database", default=["None"], nargs="+", choices=["pvog", "pfam"], help="Select Database")
     parser.add_argument("--pvog", "-p", dest="pvog", default=["None"], help="pVOG HMM database file")
     parser.add_argument("--pfam", "-f", dest="pfam", default=["None"], help="Pfam HMM database file")
@@ -212,6 +213,41 @@ def combineGeneClusters():
     return(df)
 
 
+def runAragorn(infile):
+    if os.path.isfile(f"{args.output_folder}/aragorn.out"):
+        print(f"{clr.colours.BWhite}aragorn output file {args.output_folder}/aragorn.out exist, skipping aragorn{clr.colours.Colour_Off}")
+    else:
+        print(f"{clr.colours.BGreen}Running ARAGORN a tRNA finder{clr.colours.Colour_Off}")
+        cmd = f"""aragorn -gc11 -w -Q {infile} | awk '{{print $2, $3}}' > {args.output_folder}/aragorn.out"""
+        stdout, stderr = execute(cmd)
+
+
+def runtRNAscan(infile):
+    if os.path.isfile(f"{args.output_folder}/tRNAscan.out"):
+        print(f"{clr.colours.BWhite}tRNAscan output file {args.output_folder}/tRNAscan.out exist, skipping tRNAscan{clr.colours.Colour_Off}")
+    else:
+        print(f"{clr.colours.BGreen}Running tRNAscan-SE 2.0 a tRNA finder{clr.colours.Colour_Off}")
+        cmd = f"tRNAscan-SE -B -o {args.output_folder}/tRNAscan.out -Q {infile}"
+        stdout, stderr = execute(cmd)
+
+
+def combinetRNAcalls():
+    print(f"{clr.colours.BGreen}Combining tRNA calls{clr.colours.Colour_Off}")
+    aragorn = pd.read_csv(f"{args.output_folder}/aragorn.out", sep="\s+", skiprows=2, header=None, names=["aragorn", "coding"])
+    aragorn[["start", "end"]] = aragorn["coding"].str.split(",", expand=True).replace(regex=[r'c\[', '\[', '\]'], value='').astype('int64')
+    aragorn.drop(["coding"], axis=1, inplace=True)
+
+    tRNAscan = pd.read_csv(f"{args.output_folder}/tRNAscan.out", sep="\t", skiprows=3, header=None, usecols=[2, 3, 4], names=["start", "end", "trnascan"])
+
+    df = pd.merge(aragorn, tRNAscan, on=["start", "end"], how="outer", indicator=True)
+    new_df = df[df["_merge"] != "right_only"]
+    data = df[df["_merge"] == "right_only"]
+    flipped = data.rename(columns={"start": "end", "end": "start"})
+    consensus = pd.merge(new_df, flipped, on=["start", "end"], how="outer")
+    consensus.drop(["_merge_x", "_merge_y"], axis=1, inplace=True)
+    consensus.to_csv(f"{args.output_folder}/tRNA_calls.tsv", sep="\t")
+    print(f"""{clr.colours.BBlue}See file {args.output_folder}/tRNA_calls.tsv for details{clr.colours.Colour_Off}""")
+
 def getSeq(df):
     print(f"{clr.colours.BGreen}Getting consenus gene calls{clr.colours.Colour_Off}")
     record = SeqIO.read(f"{args.infile}", "fasta")
@@ -326,6 +362,22 @@ def main(args):
     if "phanotate" in args.genecallers:
         runPHANOTATE(args.infile,)
 
+    if "all" in args.trna:
+        runAragorn(args.infile)
+        runtRNAscan(args.infile)
+        if os.path.getsize(f"{args.output_folder}/tRNAscan.out") == 0:
+            print(f"{clr.colours.BWhite}tRNAscan-SE 2.0 did not find any tRNAs{clr.colours.Colour_Off}")
+        if os.path.getsize(f"{args.output_folder}/aragorn.out") == 14:
+            print(f"{clr.colours.BWhite}aragorn did not find any tRNAs{clr.colours.Colour_Off}")
+        else:
+            combinetRNAcalls()
+    if "aragorn" in args.trna:
+        runAragorn(args.infile)
+        print(f"""{clr.colours.BBlue}See file {args.output_folder}/aragorn.out for details{clr.colours.Colour_Off}""")
+    if "trnascan" in args.trna:
+        runtRNAscan(args.infile)
+        print(f"""{clr.colours.BBlue}See file {args.output_folder}/tRNAscan.out for details{clr.colours.Colour_Off}""")
+
     if args.database == ["None"]:
         print(f"{clr.colours.BWhite}No databases indicated to search{clr.colours.Colour_Off}")
 
@@ -342,7 +394,7 @@ def main(args):
             translateSeq(getSeq(combineGeneClusters()))
             runPfamsearch()
 
-    print(f"{clr.colours.BGreen}See file: {args.output_folder}/gene_clusters.tsv {clr.colours.Colour_Off}")
+    print(f"{clr.colours.BBlue}See file: {args.output_folder}/gene_clusters.tsv {clr.colours.Colour_Off}")
 
 
 if __name__ == "__main__":

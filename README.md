@@ -17,7 +17,7 @@ If you want to run glimmer3 you will need ELPH : Estimated Locations of Pattern 
 ## Quick start
 **Note:** This program can only process one contig at a time. If you have multiple contigs, please run them seperately.
 ```
-./genecaller.py -i phage.fasta -o output_dir -gc all -db pvog pfam -p ~/databases/pvog_database.hmm -f ~/databases/Pfam-A.hmm
+./genecaller.py -i phage.fasta -o output_dir -gc all --trna all -db pvog pfam -p ~/databases/pvog_database.hmm -f ~/databases/Pfam-A.hmm
 ./gene_stats.py -i output_dir/gene_clusters.tsv -o outdir2
 ```
 
@@ -36,7 +36,7 @@ If you want to run glimmer3 you will need ELPH : Estimated Locations of Pattern 
 
 
 ## Walkthrough
-The program consists of two python scripts, `genecaller.py` and `gene_stats.py`. `genecaller.py` automates the calling of five (I would like to include more in the future) different gencallers prodigal, glimmer, metagene annotator, phanotate and fraggenescan. The output of these are collated and duplicate gene calls removed. The resulting genes can be searched against the Prokaryotic Virus Orthologous Groups (pVOGs) and or Pfam database to find simular genes. It is not required to use all the above listed gencallers. Using `-gc` option, you can specify which genecallers you want. For example `-gc prodigal mga` will just run prodigal and mga. The default is `-gc all`.
+The program consists of two python scripts, `genecaller.py` and `gene_stats.py`. `genecaller.py` automates the calling of five (I would like to include more in the future) different gencallers prodigal, glimmer, metagene annotator, phanotate and fraggenescan. The output of these are collated and duplicate gene calls removed. The resulting genes can be searched against the Prokaryotic Virus Orthologous Groups (pVOGs) and or Pfam database to find simular genes. It is not required to use all the above listed gencallers. Using `-gc` option, you can specify which genecallers you want. For example `-gc prodigal mga` will just run prodigal and mga. The default is `-gc all`. This is the same with the tRNA callers, `--trna aragorn` will just run aragorn and `--trna trnascan` will just run tRNA scan. The default is `--trna all`.
 
 
 By default the search using hidden markov models of the gene call outputs against the pVOG/Pfam database is off, but can be specified with `-db pvog -p <location of pVOG database` and `-db pfam -f <location of pVOG database` or both (see quickstart). This requires the pVOGs and or Pfam database to be setup before hand. The pVOGs database can be downloaded from [here](http://dmk-brain.ecn.uiowa.edu/pVOGs/downloads.html) and the subsequent annotations interpreted from their abbrevations - VOG0002 to "major coat protein" for example. There are plans to include searches against the interpro databases and BLAST against the nr database in the future.
@@ -51,19 +51,19 @@ hmmpress pVOG
 If you want the pFAM-A database, go to ftp://ftp.ebi.ac.uk/pub/databases/Pfam/releases and select the lastest release (Pfam33.1/		26/06/2020, 12:02:00 was the lastest for me) and download Pfam-A.hmm.gz. Using `gunzip Pfam-A.hmm.gz` you can unzip the file the database is ready to use.
 
 
-`gene_stats.py` attempts to closely follow the current annotation protocol popularised by the SEA-PHAGE consortium. You can find more details [here](https://doi.org/10.3390/ijms20143391), which I refer to as the "paper". To use this tool, you just need to specify the output file from `genecaller.py` (the gene_clusters.tsv file) and an output file. The file consists of a spreadsheet with various gene statistics and their scores suggested by the paper to include or exclude a gene from final annotation. Again, this is just a tool to assist in annotation and should not be treated as a final polish product. I will go through each of the methods in the paper and show how I have attempted to impliment a coding alternative.
+`gene_stats.py` attempts to closely follow the current annotation protocol popularised by the SEA-PHAGE consortium. You can find more details [here](https://doi.org/10.3390/ijms20143391), which I refer to as the "paper". To use this tool, you just need to specify the output file from `genecaller.py` (the gene_clusters.tsv file) and an output directory. The file consists of a spreadsheet with various gene statistics and their scores suggested by the paper to include or exclude a gene from final annotation. Again, this is just a tool to assist in annotation and should not be treated as a final polish product. I will go through each of the methods in the paper and show how I have attempted to impliment a coding alternative.
 
 ## Annotation
 All the below criteria have been derived from "A Method for Improving the Accuracy and Efficiency of Bacteriophage Genome Annotation" by Salisbury and Tsourkas, 2019 from the International Journal of Molecular Sciences. I would highly recomend giving thier paper a read to understand how I have attemped to automate their methods section.
 
 ### 4.1.1. Auto-Annotation Program Program Calls
-Annotation is first performed with Glimmer, GeneMark family, Prodigal, PHANOTATE. Glimmer, Prodigal and PHANOTATE is implimented with genecaller.py, the GeneMark family is not. The user could use the webversions of the GeneMark family and integrate their results into the spreadsheet. There are plans to include the automation of the GeneMark family in the future, but for now are ignored. Instead, FragGeneScan and MetaGene Annotator are included. Detection of tRNA genes are not performed in this algorthim with plans to inclde them in the future. (Aragorn, tRNAScan-se ... etc). The algorthim is entirely reliant on the five genecallers to pull out all possible open reading frames (ORFs).
+Annotation is first performed with Glimmer, GeneMark family, Prodigal, PHANOTATE. Glimmer, Prodigal and PHANOTATE is implimented with genecaller.py, the GeneMark family is not. The user could use the webversions of the GeneMark family and integrate their results into the spreadsheet. There are plans to include the automation of the GeneMark family in the future, but for now are ignored. Instead, FragGeneScan and MetaGene Annotator are included. Detection of tRNA genes are performed by Aragorn and tRNAScan-se. The algorthim is entirely reliant on the five genecallers to pull out all possible open reading frames (ORFs).
 
-To combined multiple different genecalls together, I have said if a gene has the same start, end and strand(frame), it is the same gene and a representative of that is kept, the rest discarded. Any gene that then has multiple representatives (I call this consenus) is awarded a score of 1 (or True) in the "duplicate" column of the spreadsheet. The paper calls for a point per consensus gene call (for example if prodigal, mga and glimmer all said gene X was in the same place, it would get 3 points). I have only awarded one point because this can unfairly benefit programs that have the same mechanism of calling genes.
+To combined multiple different genecalls together, I have said if a gene has the same start, end and strand(frame), it is the same gene and a representative of that is kept, the rest discarded. Any gene that then has multiple representatives (I call this consenus) is awarded a score of 1 (or True) in the "duplicate" column of the spreadsheet. The paper calls for a point per consensus gene call (for example if prodigal, mga and glimmer all said gene X was in the same place, it would get 3 points). I have only awarded one point because this can unfairly benefit programs that have the same algorthims of calling genes.
 
 The "truncated" column indicates that prodigal or mga thinks the gene is cut in half. For example, it thinks the gene continues off the end of the contig. Should this be the case, you may want to combine the first and last gene together in that order depending on the coding strand (+ or -). If the gene is thought to be truncated it loses a score of 1.
 
-Every genecall provides a score of how "likely" a particular genecaller thinks a gene is correct. Each program calculates its score differently (and annoying not X/100%) so it is diffcult to compare. My alternative is to make each score a fraction of the maximum score achieved. For example if prodgials scores of genes 1-5 are [2, 3, 10, 2, 7] then max(2+3+10+2+7) = 10 (10 is the higest observed score) and the new genescores would be 2/10=0.2, 3/10=0.3, 10/10=1.0 ... etc. This allows a somewhat better comparison of gene scores. (Sorry PHANOTATE). The scores are then add to the final total.
+Every genecall provides a score of how "likely" a particular genecaller thinks a gene is correct. Each program calculates its score differently (and annoying not X/100%) so it is diffcult to compare. My alternative is to make each score a fraction of the maximum score achieved. For example if prodgial's scores of genes 1-5 are [2, 3, 10, 2, 7] then max(2+3+10+2+7) = 10 (10 is the higest observed score) and the new genescores would be 2/10=0.2, 3/10=0.3, 10/10=1.0 ... etc. This allows a somewhat better comparison of gene scores. (Sorry PHANOTATE). The scores are then add to the final total.
 
 ### 4.1.2. Coding Potential
 Determining coding potential bioinformatically is diffcult as the output is a graph and subjective to classify. Therefore, some genecallers (prodigal and MGA) provide a ribosomal binding score (RBS). This RBS score is also "normalised" like above and included as the final score. This does make it more likely to include MGA and Prdigal gene calls but RBS is my alternative to coding potential which is difficult to include bioinformatically. rbs_score is also added to the final total.
@@ -97,7 +97,98 @@ The paper refers to all locations a gene may start as a start codon and uses the
 `dataframe["total_score"] = dataframe[["rbs_score", "score", "duplicate", "length_penality", "operon", "overlap_pen"]].fillna(0).sum(axis=1) - dataframe["truncated"].fillna(0)`
 
 ## Future plans
-* Include consenus tRNA caller with aragorn, tRNAScan-se
-* hmmsearch against interproscan and Pfam
+* hmmsearch against interproscan
 * diamond blast against nr
 * Parser for GeneMark family
+
+## Viewing viral genomes
+I like gggenes R library
+`conda install -c conda-forge r-gggenes r-ggrepel`
+And I'm using the plyr library for data manipulation
+`conda install -c conda-forge r-plyr`
+
+
+# Testing
+To show there is a need for a consenus gene caller, I have used off the shelf gene callers and compared their result to using this program. I have used Prodigal, MGA, PHANOTATE, FGS and Glimmer. My test genome is HTVC010P, and Lambda_phage_GCF_000840245. Results are visualised using the R package gggenes. I have included the code to annotate each genome for transparency.
+
+### Prodigal
+`prodigal -i Lambda_phage_GCF_000840245.1.fasta -f gff -p meta -q -m -g 11 | awk -v OFS='\t' '!/#/ {print $2, $4, $5, $7}' > Prodigal_lambda.tsv`
+
+### MGA
+`mga Lambda_phage_GCF_000840245.1.fasta -m | awk -v OFS='\t' '!/#/ {print "MGA", $2, $3, $4}' > mga_lambda.tsv`
+
+### FGS
+`awk -v OFS='\t' '!/>/ {print "FGS", $1, $2, $3}' FGS_lambda.out > FGS_lambda.tsv`
+
+### PHANOTATE
+`phanotate.py -f tabular Lambda_phage_GCF_000840245.1.fasta | awk -v OFS='\t' '!/#/ {print "PHANOTATE", $1, $2, $3}' > phannotate_lambda.tsv`
+
+### Glimmer3
+I needed to change my `get-motif-counts.awk` and `upstream-coords.awk` shebang from `#!/bin/awk -f` to `#!/usr/bin/awk -f` for it to find `awk`
+
+```
+#!/bin/bash
+mkdir GLIMMER;
+long-orfs -n -t 1.15 Lambda_phage_GCF_000840245.1.fasta GLIMMER/run3.longorfs;
+extract -t Lambda_phage_GCF_000840245.1.fasta GLIMMER/run3.longorfs > GLIMMER/run3.train;
+build-icm -r GLIMMER/run3.icm < GLIMMER/run3.train;
+glimmer3 -o50 -g110 -t30 Lambda_phage_GCF_000840245.1.fasta GLIMMER/run3.icm GLIMMER/run3.run1;
+tail -n +2 GLIMMER/run3.run1.predict > GLIMMER/run3.coords;
+upstream-coords.awk 25 0 GLIMMER/run3.coords | extract Lambda_phage_GCF_000840245.1.fasta - > GLIMMER/run3.upstream;
+elph GLIMMER/run3.upstream LEN=6 | get-motif-counts.awk > GLIMMER/run3.motif;
+startuse="$(start-codon-distrib -3 Lambda_phage_GCF_000840245.1.fasta GLIMMER/run3.coords)";
+glimmer3 -o50 -g110 -t30 -b GLIMMER/run3.motif -P $startuse Lambda_phage_GCF_000840245.1.fasta GLIMMER/run3.icm GLIMMER/glimmer
+awk -v OFS='\t' '!/>/ {gsub(/+[0-9]/, "+", $4); gsub(/-[0-9]/, "-", $4); print "glimmer", $2, $3, $4}' GLIMMER/glimmer.predict > glimmer_lambda.tsv
+```
+
+To view each of the genecalls, I used gggenes, an R library
+
+```
+library(ggfittext)
+library(gggenes)
+library(ggplot2)
+library(ggrepel)
+library(RColorBrewer)
+library(plyr)
+
+lambda = read.table("lambda_genecalls.tsv", sep="\t")
+rename(lambda, c("V1"="annotator","V2"="start","V3"="end","V4"="direction"))
+
+ggplot(lambda, aes(xmin = start, xmax = end, y = annotator, forward = direction)) +
+  geom_gene_arrow() +
+  facet_wrap(~ annotator, scales = "free", ncol = 1) +
+  scale_fill_brewer(palette = "Set3") +
+  theme_genes()
+
+ggsave("lambda/gggenes.png", limitsize = FALSE, dpi = 150)
+```
+> example_genes
+   molecule  gene  start    end  strand direction
+1   Genome5  genA 405113 407035 forward         1
+2   Genome5  genB 407035 407916 forward         1
+3   Genome5  genC 407927 408394 forward         1
+4   Genome5  genD 408387 408737 reverse        -1
+5   Genome5  genE 408751 409830 forward         1
+
+
+### Ashley Working Document
+
+
+
+
+
+```
+colourCount = length(unique(virus$COG_cat))
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+ggplot(virus, aes(xmin = Start, xmax = End, y = Genome, fill = COG_cat, forward = Strand, label = role)) +
+  geom_gene_arrow(arrowhead_height = unit(10, "mm"), arrowhead_width = unit(3, "mm"), arrow_body_height = unit(10, "mm") ) +
+  geom_gene_label(align = "middle") +
+  facet_wrap(~ Genome, scales = "free", ncol = 1) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(9, "Set1"))(colourCount)) +
+  theme_genes() +
+  theme(legend.position="bottom") +
+  guides(fill=guide_legend(nrow=5))
+
+ggsave("~/virsorter/gggenes.png", width = 420, height = 297, units = "mm", limitsize = FALSE, dpi = 72)
+```
