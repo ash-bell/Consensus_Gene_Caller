@@ -1,0 +1,27 @@
+#!/usr/bin/R
+
+require(ggfittext)
+require(gggenes)
+require(ggplot2)
+require(ggrepel)
+require(RColorBrewer)
+require(plyr)
+
+df = read.table("gene_statistics.tsv", sep = "\t", header=TRUE)
+df$genecaller = gsub("_.*","",df$gene)
+df$direction <- ifelse(df$strand == "+", 1, -1)
+
+colourCount = length(unique(df$Pfam_hit))
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+ggplot(df, aes(xmin=start, xmax=end, y=genecaller, fill=Pfam_hit, label=gene, forward=direction)) +
+    geom_gene_arrow(arrowhead_height = unit(6, "mm"), arrowhead_width = unit(2, "mm"), arrow_body_height = unit(6, "mm")) +
+    geom_gene_label(align = "centre") +
+    facet_wrap(~ genecaller, scales = "free", ncol = 1) +
+    scale_fill_manual(values = getPalette(colourCount)) +
+    theme_genes() +
+    theme(legend.position="bottom") +
+    scale_x_continuous(limits = c(0, df$contig_length[1]), breaks = seq(0, df$contig_length[1], by=1000)) +
+    guides(fill=guide_legend(nrow=5))
+
+ggsave("gggenes.pdf", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
