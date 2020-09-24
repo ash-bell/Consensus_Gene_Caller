@@ -25,7 +25,7 @@ def my_args():
     parser.add_argument("--outdir", "-o", dest="output_folder", required=True, help="Output folder where the files will be created or generated if it doesn't exist")
     parser.add_argument("--genecallers", "-gc", dest="genecallers",  nargs="+", default=["all"], choices=["prodigal", "mga", "glimmer", "fraggenescan", "phanotate", "all"],
                         help="Select genecaller(s)")
-    parser.add_argument("--trna", dest="trna", nargs="+", default=["all"], choices=["all", "aragorn", "trnascan"], help="Select tRNA Scanner")
+    parser.add_argument("--trna", dest="trna", nargs="+", default=["None"], choices=["all", "aragorn", "trnascan"], help="Select tRNA Scanner")
     parser.add_argument("--database", "-db", dest="database", default=["None"], nargs="+", choices=["pvog", "pfam"], help="Select Database")
     parser.add_argument("--pvog", "-p", dest="pvog", default=["None"], help="pVOG HMM database file")
     parser.add_argument("--pfam", "-f", dest="pfam", default=["None"], help="Pfam HMM database file")
@@ -125,8 +125,7 @@ def runGlimmer(infile):
         with open(f"{args.output_folder}/glimmer.predict", "r") as handle:
             first_line = handle.readline()
         glimmer["contig"] = first_line.split()[0].split(">")[1]
-        glimmer.loc[glimmer["strand"] < 0, "strand"] = "-"
-        glimmer.loc[glimmer["strand"] > 0, "strand"] = "+"
+        glimmer["strand"] = np.where(glimmer["strand"] > 0, '+', '-')
         glimmer["score"] = glimmer["score"] / max(glimmer["score"])
         glimmer["rbs_score"] = np.nan
         glimmer["truncated"] = np.nan
@@ -218,7 +217,7 @@ def runAragorn(infile):
         print(f"{clr.colours.BWhite}aragorn output file {args.output_folder}/aragorn.out exist, skipping aragorn{clr.colours.Colour_Off}")
     else:
         print(f"{clr.colours.BGreen}Running ARAGORN a tRNA finder{clr.colours.Colour_Off}")
-        cmd = f"""aragorn -gc11 -w -Q {infile} | awk '{{print $2, $3}}' > {args.output_folder}/aragorn.out"""
+        cmd = f"""aragorn -gc11 -w -Q {infile} | awk 'NR > 2 {{print $2, $3}}' > {args.output_folder}/aragorn.out"""
         stdout, stderr = execute(cmd)
 
 
@@ -233,7 +232,7 @@ def runtRNAscan(infile):
 
 def combinetRNAcalls():
     print(f"{clr.colours.BGreen}Combining tRNA calls{clr.colours.Colour_Off}")
-    aragorn = pd.read_csv(f"{args.output_folder}/aragorn.out", sep="\s+", skiprows=2, header=None, names=["aragorn", "coding"])
+    aragorn = pd.read_csv(f"{args.output_folder}/aragorn.out", sep="\s+", header=None, names=["aragorn", "coding"])
     aragorn[["start", "end"]] = aragorn["coding"].str.split(",", expand=True).replace(regex=[r'c\[', '\[', '\]'], value='').astype('int64')
     aragorn.drop(["coding"], axis=1, inplace=True)
 
@@ -247,6 +246,7 @@ def combinetRNAcalls():
     consensus.drop(["_merge_x", "_merge_y"], axis=1, inplace=True)
     consensus.to_csv(f"{args.output_folder}/tRNA_calls.tsv", sep="\t")
     print(f"""{clr.colours.BBlue}See file {args.output_folder}/tRNA_calls.tsv for details{clr.colours.Colour_Off}""")
+
 
 def getSeq(df):
     print(f"{clr.colours.BGreen}Getting consenus gene calls{clr.colours.Colour_Off}")
@@ -310,8 +310,7 @@ def runPfamsearch():
     if args.pfam == ["None"]:
         print(f"{clr.colours.BRed}no Pfam database provided, HMM search against Pfam database will not be run{clr.colours.Colour_Off}")
     elif os.path.isfile(f"{args.output_folder}/Pfam_hits.tbl"):
-        Pfam = pd.read_csv(f"{args.output_folder}/Pfam_hits.tbl", sep="\s+", comment="#", engine='python', header=None,
-                            usecols=[0, 2, 4], names=["gene", "Pfam_hit", "Pfam_e-val"])
+        Pfam = pd.read_csv(f"{args.output_folder}/Pfam_hits.tbl", sep="\s+", comment="#", engine='python', header=None, usecols=[0, 2, 4], names=["gene", "Pfam_hit", "Pfam_e-val"])
         Pfam.sort_values("Pfam_e-val", inplace=True)
         Pfam.drop_duplicates(subset="gene", keep="first", inplace=True)
         df = pd.read_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
@@ -321,8 +320,7 @@ def runPfamsearch():
         print(f"{clr.colours.BGreen}Searching protein coding regions against the Pfam-A database {clr.colours.Colour_Off}")
         cmd = f"""hmmsearch --tblout {args.output_folder}/Pfam_hits.tbl --notextw -E 10 {args.pfam} {args.output_folder}/all_gene_calls.faa"""
         stdout, stderr = execute(cmd)
-        Pfam = pd.read_csv(f"{args.output_folder}/Pfam_hits.tbl", sep="\s+", comment="#", engine='python', header=None,
-                            usecols=[0, 2, 4], names=["gene", "Pfam_hit", "Pfam_e-val"])
+        Pfam = pd.read_csv(f"{args.output_folder}/Pfam_hits.tbl", sep="\s+", comment="#", engine='python', header=None, usecols=[0, 2, 4], names=["gene", "Pfam_hit", "Pfam_e-val"])
         Pfam.sort_values("Pfam_e-val", inplace=True)
         Pfam.drop_duplicates(subset="gene", keep="first", inplace=True)
         df = pd.read_csv(f"{args.output_folder}/gene_clusters.tsv", sep="\t")
@@ -362,12 +360,14 @@ def main(args):
     if "phanotate" in args.genecallers:
         runPHANOTATE(args.infile,)
 
+    if args.trna == ["None"]:
+        print(f"{clr.colours.BWhite}No tRNA scanner indicated to search{clr.colours.Colour_Off}")
     if "all" in args.trna:
         runAragorn(args.infile)
         runtRNAscan(args.infile)
         if os.path.getsize(f"{args.output_folder}/tRNAscan.out") == 0:
             print(f"{clr.colours.BWhite}tRNAscan-SE 2.0 did not find any tRNAs{clr.colours.Colour_Off}")
-        if os.path.getsize(f"{args.output_folder}/aragorn.out") == 14:
+        if os.path.getsize(f"{args.output_folder}/aragorn.out") == 0:
             print(f"{clr.colours.BWhite}aragorn did not find any tRNAs{clr.colours.Colour_Off}")
         else:
             combinetRNAcalls()

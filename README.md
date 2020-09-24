@@ -7,12 +7,13 @@ The goal is to make installation of this algorithim as painless as possible, the
 
 A new environment can be created:
 ```
-conda create -n seaphages -c bioconda -c hcc -c anaconda -c conda-forge prodigal metagene_annotator glimmer fraggenescan hmmer trnascan-se phanotate biopython pandas numpy
+conda create -n seaphages -c bioconda -c hcc -c anaconda -c conda-forge prodigal metagene_annotator glimmer fraggenescan hmmer trnascan-se phanotate biopython pandas numpy aragorn
 conda activate seaphages
 git clone https://github.com/ash-bell/Consensus_Gene_Caller.git
 ```
 If you want to run glimmer3 you will need ELPH : Estimated Locations of Pattern Hits from [here](https://cbcb.umd.edu/software/ELPH/). Download and install it as recomended and add it to your PATH. How? [Here](https://opensource.com/article/17/6/set-path-linux)
 
+To get Glimmer to work I needed to change my `get-motif-counts.awk` and `upstream-coords.awk` shebang from `#!/bin/awk -f` to `#!/usr/bin/awk -f` for it to find `awk`
 
 ## Quick start
 **Note:** This program can only process one contig at a time. If you have multiple contigs, please run them seperately.
@@ -109,23 +110,24 @@ And I'm using the plyr library for data manipulation
 
 
 # Testing
-To show there is a need for a consenus gene caller, I have used off the shelf gene callers and compared their result to using this program. I have used Prodigal, MGA, PHANOTATE, FGS and Glimmer. My test genome is HTVC010P, and Lambda_phage_GCF_000840245. Results are visualised using the R package gggenes. I have included the code to annotate each genome for transparency.
+To show there is a need for a consenus gene caller, I have used off the shelf gene callers and compared their result to using this program. I have used Prodigal, MGA, PHANOTATE, FGS and Glimmer. My test genome is Lambda_phage_GCF_000840245. Results are visualised using the R package gggenes. I have included the code to annotate each genome for transparency.
 
 ### Prodigal
-`prodigal -i Lambda_phage_GCF_000840245.1.fasta -f gff -p meta -q -m -g 11 | awk -v OFS='\t' '!/#/ {print $2, $4, $5, $7}' > Prodigal_lambda.tsv`
+`prodigal -i Lambda_phage_GCF_000840245.1.fasta -f gff -p meta -q -m -g 11 | awk -v OFS='\t' '!/#/ {print $2, NR-3, $4, $5, $7}' > Prodigal_lambda.tsv`
 
 ### MGA
-`mga Lambda_phage_GCF_000840245.1.fasta -m | awk -v OFS='\t' '!/#/ {print "MGA", $2, $3, $4}' > mga_lambda.tsv`
+`mga Lambda_phage_GCF_000840245.1.fasta -m | awk -v OFS='\t' '!/#/ {print "MGA", NR, $2, $3, $4}' > mga_lambda.tsv`
 
 ### FGS
-`awk -v OFS='\t' '!/>/ {print "FGS", $1, $2, $3}' FGS_lambda.out > FGS_lambda.tsv`
+```
+run_FragGeneScan.pl -genome=Lambda_phage_GCF_000840245.1.fasta -out=FGS_lambda -complete=1 -train=complete
+awk -v OFS='\t' '!/>/ {print "FGS", NR-1, $1, $2, $3}' FGS_lambda.out > FGS_lambda.tsv
+```
 
 ### PHANOTATE
-`phanotate.py -f tabular Lambda_phage_GCF_000840245.1.fasta | awk -v OFS='\t' '!/#/ {print "PHANOTATE", $1, $2, $3}' > phannotate_lambda.tsv`
+`phanotate.py -f tabular Lambda_phage_GCF_000840245.1.fasta | awk -v OFS='\t' '!/#/ {print "PHANOTATE", NR-2, $1, $2, $3}' > phannotate_lambda.tsv`
 
 ### Glimmer3
-I needed to change my `get-motif-counts.awk` and `upstream-coords.awk` shebang from `#!/bin/awk -f` to `#!/usr/bin/awk -f` for it to find `awk`
-
 ```
 #!/bin/bash
 mkdir GLIMMER;
@@ -138,57 +140,74 @@ upstream-coords.awk 25 0 GLIMMER/run3.coords | extract Lambda_phage_GCF_00084024
 elph GLIMMER/run3.upstream LEN=6 | get-motif-counts.awk > GLIMMER/run3.motif;
 startuse="$(start-codon-distrib -3 Lambda_phage_GCF_000840245.1.fasta GLIMMER/run3.coords)";
 glimmer3 -o50 -g110 -t30 -b GLIMMER/run3.motif -P $startuse Lambda_phage_GCF_000840245.1.fasta GLIMMER/run3.icm GLIMMER/glimmer
-awk -v OFS='\t' '!/>/ {gsub(/+[0-9]/, "+", $4); gsub(/-[0-9]/, "-", $4); print "glimmer", $2, $3, $4}' GLIMMER/glimmer.predict > glimmer_lambda.tsv
+awk -v OFS='\t' '!/>/ {gsub(/+[0-9]/, "+", $4); gsub(/-[0-9]/, "-", $4); print "glimmer", NR-1, $2, $3, $4}' GLIMMER/glimmer.predict > glimmer_lambda.tsv
 ```
+
+### NCBI annotations
+Too see what the NCBI database catagories as a coding region, I downnloaded the accompaning (GFF file)[https://www.ncbi.nlm.nih.gov/assembly/GCF_000840245.1/]
+
+`awk '$3=="gene" {print $2, $4, $5, $7}' GCF_000840245.1_ViralProj14204_genomic.gff | awk -v OFS='\t' '{ print $1, NR, $2,$3,$4}' > refseq_lambda.tsv`
+
+### Consenus Gene Caller
+To produce genecalls from this program i used the commands:
+```
+./genecaller.py -i Lambda_phage_GCF_000840245.1.fasta -o outdir -gc all --trna all --database pvog pfam -p AllvogHMMprofiles/pVOG.hmm -f Pfam-A.hmm
+./gene_stats.py -i outdir/gene_clusters.tsv -o outdir2
+```
+I looked through each genecall from the `gene_statistics.tsv` file for coding regions and highlighted the ones I think were correct. I have attached my curation results here: Green = probable, Red = unlikely, Blue = maybe (I plotted both to show the difference). I found it easiest to take a page out of the SEA-PHAGES protocol and to plot all the genes separated by indiviual genecallers. Script is here if want to do that. Each and every genecall needs to be compared to simular ones to determind if they are correct. Generally I find anything with a score >-3 is more probable and <-3.5 less likely. Sometimes the same gene is genecalled backwards (Glimmer-Prodigal). When I am unsure I usually refered to the gene with the smallest e-val as the correct one. Here are my final genecalls.
+
 
 To view each of the genecalls, I used gggenes, an R library
 
 ```
-library(ggfittext)
-library(gggenes)
-library(ggplot2)
-library(ggrepel)
-library(RColorBrewer)
-library(plyr)
+require(ggfittext)
+require(gggenes)
+require(ggplot2)
+require(ggrepel)
+require(RColorBrewer)
+require(plyr)
 
-lambda = read.table("lambda_genecalls.tsv", sep="\t")
-rename(lambda, c("V1"="annotator","V2"="start","V3"="end","V4"="direction"))
+lambda = read.table("~/projects/Consensus_Gene_Caller/CGS_final.tsv", sep="\t")
+lambda = rename(lambda, c("V1"="genome","V2"="gene","V3"="start","V4"="end","V5"="strand", "V6"="Pfam_hit"))
+lambda$direction <- ifelse(lambda$strand == "+", 1, -1)
 
-ggplot(lambda, aes(xmin = start, xmax = end, y = annotator, forward = direction)) +
-  geom_gene_arrow() +
-  facet_wrap(~ annotator, scales = "free", ncol = 1) +
-  scale_fill_brewer(palette = "Set3") +
-  theme_genes()
-
-ggsave("lambda/gggenes.png", limitsize = FALSE, dpi = 150)
-```
-> example_genes
-   molecule  gene  start    end  strand direction
-1   Genome5  genA 405113 407035 forward         1
-2   Genome5  genB 407035 407916 forward         1
-3   Genome5  genC 407927 408394 forward         1
-4   Genome5  genD 408387 408737 reverse        -1
-5   Genome5  genE 408751 409830 forward         1
-
-
-### Ashley Working Document
-
-
-
-
-
-```
-colourCount = length(unique(virus$COG_cat))
+colourCount = length(unique(lambda$Pfam_hit))
 getPalette = colorRampPalette(brewer.pal(9, "Set1"))
 
-ggplot(virus, aes(xmin = Start, xmax = End, y = Genome, fill = COG_cat, forward = Strand, label = role)) +
-  geom_gene_arrow(arrowhead_height = unit(10, "mm"), arrowhead_width = unit(3, "mm"), arrow_body_height = unit(10, "mm") ) +
-  geom_gene_label(align = "middle") +
-  facet_wrap(~ Genome, scales = "free", ncol = 1) +
-  scale_fill_manual(values = colorRampPalette(brewer.pal(9, "Set1"))(colourCount)) +
-  theme_genes() +
-  theme(legend.position="bottom") +
-  guides(fill=guide_legend(nrow=5))
+ggplot(lambda, aes(xmin=start, xmax=end, y=genome, fill=Pfam_hit, label=gene, forward=direction)) +
+    geom_gene_arrow(arrowhead_height = unit(6, "mm"), arrowhead_width = unit(2, "mm"), arrow_body_height = unit(6, "mm")) +
+    geom_gene_label(align = "centre") +
+    facet_wrap(~ genome, scales = "free", ncol = 1) +
+    scale_fill_manual(values = getPalette(colourCount)) +
+    theme_genes() +
+    theme(legend.position="bottom") +
+    scale_x_continuous(limits = c(0, 49109), breaks = seq(0, 49109, by=1000)) +
+    guides(fill=guide_legend(nrow=5))
 
-ggsave("~/virsorter/gggenes.png", width = 420, height = 297, units = "mm", limitsize = FALSE, dpi = 72)
+ggsave("~/projects/Consensus_Gene_Caller/cgs_lambda_gggenes.pdf", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
 ```
+require(ggfittext)
+require(gggenes)
+require(ggplot2)
+require(ggrepel)
+require(RColorBrewer)
+require(plyr)
+
+lambda = read.table("~/projects/Consensus_Gene_Caller/compare_genecallers.tsv", sep="\t")
+lambda = rename(lambda, c("V1"="genecaller","V2"="gene","V3"="start","V4"="end","V5"="strand"))
+lambda$direction <- ifelse(lambda$strand == "+", 1, -1)
+
+colourCount = length(unique(lambda$gene))
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+ggplot(lambda, aes(xmin=start, xmax=end, y=genecaller, fill=gene, label=gene, forward=direction)) +
+    geom_gene_arrow(arrowhead_height = unit(6, "mm"), arrowhead_width = unit(2, "mm"), arrow_body_height = unit(6, "mm")) +
+    geom_gene_label(align = "centre") +
+    facet_wrap(~ genecaller, scales = "free", ncol = 1) +
+    scale_fill_manual(values = getPalette(colourCount)) +
+    theme_genes() +
+    theme(legend.position="bottom") +
+    scale_x_continuous(limits = c(0, 49109), breaks = seq(0, 49109, by=1000)) +
+    guides(fill=guide_legend(nrow=5))
+
+ggsave("~/projects/Consensus_Gene_Caller/cgs_lambda_gggenes.pdf", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
