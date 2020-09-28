@@ -23,6 +23,7 @@ To get Glimmer to work I needed to change my `get-motif-counts.awk` and `upstrea
 ```
 
 ## Programs used
+* aragorn 1.2.38
 * biopython 1.77
 * fraggenescan 1.31
 * glimmer 3.02
@@ -34,6 +35,14 @@ To get Glimmer to work I needed to change my `get-motif-counts.awk` and `upstrea
 * prodigal 2.6.3
 * python 3.8.3
 * trnascan-se 2.0.5
+
+## Optional graphical R libraries
+* r-ggfittext 0.9.0
+* r-gggenes 0.4.0
+* r-ggplot2 3.3.2
+* r-ggrepel 0.8.2
+* r-plyr 1.8.6
+
 
 
 ## Walkthrough
@@ -49,33 +58,33 @@ cat AllvogHMMprofiles/*.hmm > pVOG
 hmmpress pVOG
 ```
 
-If you want the pFAM-A database, go to ftp://ftp.ebi.ac.uk/pub/databases/Pfam/releases and select the lastest release (Pfam33.1/		26/06/2020, 12:02:00 was the lastest for me) and download Pfam-A.hmm.gz. Using `gunzip Pfam-A.hmm.gz` you can unzip the file the database is ready to use.
+If you want the pFAM-A database, go to ftp://ftp.ebi.ac.uk/pub/databases/Pfam/releases and select the lastest release (Pfam33.1/		26/06/2020, 12:02:00 was the lastest for me) and download Pfam-A.hmm.gz. Using `gunzip Pfam-A.hmm.gz` you can unzip the file and the database is ready to use.
 
 
-`gene_stats.py` attempts to closely follow the current annotation protocol popularised by the SEA-PHAGE consortium. You can find more details [here](https://doi.org/10.3390/ijms20143391), which I refer to as the "paper". To use this tool, you just need to specify the output file from `genecaller.py` (the gene_clusters.tsv file) and an output directory. The file consists of a spreadsheet with various gene statistics and their scores suggested by the paper to include or exclude a gene from final annotation. Again, this is just a tool to assist in annotation and should not be treated as a final polish product. I will go through each of the methods in the paper and show how I have attempted to impliment a coding alternative.
+`gene_stats.py` attempts to closely follow the current annotation protocol popularised by the SEA-PHAGES consortium. You can find more details [here](https://doi.org/10.3390/ijms20143391), which I refer to as the "paper". To use this tool, you just need to specify the output file from `genecaller.py` (the gene_clusters.tsv file) and an output directory. The file consists of a spreadsheet with various gene statistics and their scores suggested by the paper to include or exclude a gene from final annotation. Again, this is just a tool to assist in annotation and should not be treated as a final polished product. I will go through each of the methods in the paper and show how I have attempted to impliment a coding alternative.
 
 ## Annotation
-All the below criteria have been derived from "A Method for Improving the Accuracy and Efficiency of Bacteriophage Genome Annotation" by Salisbury and Tsourkas, 2019 from the International Journal of Molecular Sciences. I would highly recomend giving thier paper a read to understand how I have attemped to automate their methods section.
+All the below criteria have been derived from the "paper" aka []"A Method for Improving the Accuracy and Efficiency of Bacteriophage Genome Annotation" by Salisbury and Tsourkas, 2019 from the International Journal of Molecular Sciences](https://doi.org/10.3390/ijms20143391). I would highly recomend giving their paper a read to understand how I have attempted to automate their methods section.
 
 ### 4.1.1. Auto-Annotation Program Program Calls
-Annotation is first performed with Glimmer, GeneMark family, Prodigal, PHANOTATE. Glimmer, Prodigal and PHANOTATE is implimented with genecaller.py, the GeneMark family is not. The user could use the webversions of the GeneMark family and integrate their results into the spreadsheet. There are plans to include the automation of the GeneMark family in the future, but for now are ignored. Instead, FragGeneScan and MetaGene Annotator are included. Detection of tRNA genes are performed by Aragorn and tRNAScan-se. The algorthim is entirely reliant on the five genecallers to pull out all possible open reading frames (ORFs).
+The paper first performs gene calling with Glimmer, GeneMark family, Prodigal and PHANOTATE. Glimmer, Prodigal and PHANOTATE is implimented with genecaller.py, the GeneMark family is not. The user could use the webversions of the GeneMark family and integrate their results into the spreadsheet. There are plans to include the automation of the GeneMark family in the future, but for now are ignored. Instead, FragGeneScan and MetaGene Annotator are included. Detection of tRNA genes are performed by Aragorn and tRNAScan-se. The algorthim is entirely reliant on the five genecallers to pull out all possible open reading frames (ORFs).
 
-To combined multiple different genecalls together, I have said if a gene has the same start, end and strand(frame), it is the same gene and a representative of that is kept, the rest discarded. Any gene that then has multiple representatives (I call this consenus) is awarded a score of 1 (or True) in the "duplicate" column of the spreadsheet. The paper calls for a point per consensus gene call (for example if prodigal, mga and glimmer all said gene X was in the same place, it would get 3 points). I have only awarded one point because this can unfairly benefit programs that have the same algorthims of calling genes.
+To combined multiple different genecalls together, I have said if a gene has the same start, end and strand/frame/direction, it is the same gene and a representative of that is kept, the rest discarded. Any gene that then has multiple representatives (I call this consenus) is awarded a score of 1 (or True) in the "duplicate" column of the spreadsheet. The paper calls for a point per consensus gene call (for example if prodigal, mga and glimmer all said gene X was in the same place, it would get 3 points). I have only awarded one point because this can unfairly benefit programs that have the same algorthims of calling genes.
 
 The "truncated" column indicates that prodigal or mga thinks the gene is cut in half. For example, it thinks the gene continues off the end of the contig. Should this be the case, you may want to combine the first and last gene together in that order depending on the coding strand (+ or -). If the gene is thought to be truncated it loses a score of 1.
 
-Every genecall provides a score of how "likely" a particular genecaller thinks a gene is correct. Each program calculates its score differently (and annoying not X/100%) so it is diffcult to compare. My alternative is to make each score a fraction of the maximum score achieved. For example if prodgial's scores of genes 1-5 are [2, 3, 10, 2, 7] then max(2+3+10+2+7) = 10 (10 is the higest observed score) and the new genescores would be 2/10=0.2, 3/10=0.3, 10/10=1.0 ... etc. This allows a somewhat better comparison of gene scores. (Sorry PHANOTATE). The scores are then add to the final total.
+Every genecall provides a score of how "likely" a particular genecaller thinks a gene is correct. Each program calculates its score differently (and annoying not X/100%) so it is diffcult to compare. My alternative is to make each score a fraction of the maximum score achieved. For example if prodgial's scores of genes 1-5 are [2, 3, 10, 2, 7] then max(2+3+10+2+7) = 10 (10 is the higest observed score) and the new genescores would be 2/10=0.2, 3/10=0.3, 10/10=1.0 ... etc. This allows a somewhat better comparison of gene scores. The scores are then add to the final total.
 
 ### 4.1.2. Coding Potential
-Determining coding potential bioinformatically is diffcult as the output is a graph and subjective to classify. Therefore, some genecallers (prodigal and MGA) provide a ribosomal binding score (RBS). This RBS score is also "normalised" like above and included as the final score. This does make it more likely to include MGA and Prdigal gene calls but RBS is my alternative to coding potential which is difficult to include bioinformatically. rbs_score is also added to the final total.
+Determining coding potential bioinformatically is diffcult as the output is a graph and subjective to classify. Therefore, some genecallers (prodigal and MGA) provide a ribosomal binding score (RBS). This RBS score is also "normalised" like above and included in the final score. This does make it more likely to include MGA and Prdigal gene calls but RBS is my alternative to coding potential which is difficult to include bioinformatically. rbs_score is also added to the final total.
 
 
 ### 4.1.3. Sequence Similarity Matches
-BLASTing or HMMing against a database is timeconsuming and can require setup of large databases to run locally. Therefore, I have made this step optional and default off (although recomended) within this program. The paper suggest doing a pBLAST against the NCBI’s non-redundant (nr) database and include searches of Pfam and Interpro with HMMer. Hits smaller that E-50 are awarded 3 points, between E-50 and E-20 2 points and between E-20 and E-10 1 point. I have implimented the same point system with a HMMer search of the Prokaryotic Virus Orthologous Groups (pVOGs) and Pfam. I plan to include an Interpro HMMer search in the future and maybe a way to integrate a BLAST search against the nr database. (I don't want to do this immediatly due to the nr database size and the time it takes to search, but could provide a script to integrate the data). If hits for the same gene are found against both the Pfam and pVOG database, only the one with the smallest (therefore best) e-value is included in the final scoring system. (Genes with hits from multiple datbases are not double counted)
+BLASTing or HMMing against a database is timeconsuming and can require setup of large databases to run locally. Therefore, I have made this step optional and default off (although highly recomended) within this program. The paper suggest doing a pBLAST against the NCBI’s non-redundant (nr) database and include searches of Pfam and Interpro with HMMer. Hits smaller that E-50 are awarded 3 points, between E-50 and E-20 2 points and between E-20 and E-10 1 point. I have implimented the same point system with a HMMer search of the Prokaryotic Virus Orthologous Groups (pVOGs) and Pfam. I plan to include an Interpro HMMer search in the future and maybe a way to integrate a BLAST search against the nr database. (I don't want to do this immediatly due to the nr database size and the time it takes to search, but could provide a script to integrate the data). If hits for the same gene are found against both the Pfam and pVOG database, only the one with the smallest (therefore best) e-value is included in the final scoring system. (Genes with hits from multiple datbases are not double counted)
 
 
 ### 4.1.4. Overlap and Operons
-The paper also includes a system to penalise hypothetical genes that overlap with coding genes. It penalises putative genes that overlap by 100 base pair (bp) or more with -4 points, between 100-70 -3 points, 70-40 -2 point and between 40-10 -1 point. I have implimented the same system here but include all genes not just putative genes. This is because calcualing overlap is a timeconsuming process, and better to delete data then need it. I have no included a system to require a 50bp region between forward genes upsteam of reverse genes due to the complexity so do be aware of this. This is because the two genes require space for promoters.
+The paper also includes a system to penalise hypothetical genes that overlap with coding genes. It penalises putative genes that overlap by 100 base pair (bp) or more with -4 points, between 100-70 -3 points, 70-40 -2 point and between 40-10 -1 point. I have implimented the same system here but include all genes not just putative genes. This is because calculating overlap is a timeconsuming process. I have no included a system to require a 50bp region between forward genes upsteam of reverse genes due to the complexity so do be aware of this. This is because the two genes require space for promoters.
 
 
 There is also an additional column for operons, and if any overlap is either 1,4 or 8 bps in length it will also append a +1 score to the operon column. This is also included in the final score.
@@ -90,7 +99,7 @@ It is up to the user to determine if they wish to keep False positives (genes th
 
 
 ### 4.1.7. Decision-Making for Gene Identification
-The paper includes a final score which is the sum of all the above criteria. They recomend keeping genes that a score of 3 or greater (don't do this for my program, my scoring system is not identical to theirs). I don't have a recomendation of a score, its up to you to decide.
+The paper includes a final score which is the sum of all the above criteria. They recomend keeping genes that a score of 3 or greater (don't do this for my program, my scoring system is not identical to theirs). I generally find scores below -3.5 unlikely and above -3 more probable.
 
 
 ## Summary
@@ -115,10 +124,14 @@ And I'm using the plyr library for data manipulation
 To show there is a need for a consenus gene caller, I have used off the shelf gene callers and compared their result to using this program. I have used Prodigal, MGA, PHANOTATE, FGS and Glimmer. My test genome is [Lambda_phage_GCF_000840245](https://www.ncbi.nlm.nih.gov/assembly/GCF_000840245.1/). Results are visualised using the R package [gggenes](https://cran.r-project.org/web/packages/gggenes/vignettes/introduction-to-gggenes.html). I have included the code to annotate each genome for transparency.
 
 ### Prodigal
-`prodigal -i Lambda_phage_GCF_000840245.1.fasta -f gff -p meta -q -m -g 11 | awk -v OFS='\t' '!/#/ {print $2, NR-3, $4, $5, $7}' > Prodigal_lambda.tsv`
+```
+prodigal -i Lambda_phage_GCF_000840245.1.fasta -f gff -p meta -q -m -g 11 | awk -v OFS='\t' '!/#/ {print $2, NR-3, $4, $5, $7}' > Prodigal_lambda.tsv
+```
 
 ### MGA
-`mga Lambda_phage_GCF_000840245.1.fasta -m | awk -v OFS='\t' '!/#/ {print "MGA", NR, $2, $3, $4}' > mga_lambda.tsv`
+```
+mga Lambda_phage_GCF_000840245.1.fasta -m | awk -v OFS='\t' '!/#/ {print "MGA", NR, $2, $3, $4}' > mga_lambda.tsv
+```
 
 ### FGS
 ```
@@ -127,7 +140,9 @@ awk -v OFS='\t' '!/>/ {print "FGS", NR-1, $1, $2, $3}' FGS_lambda.out > FGS_lamb
 ```
 
 ### PHANOTATE
-`phanotate.py -f tabular Lambda_phage_GCF_000840245.1.fasta | awk -v OFS='\t' '!/#/ {print "PHANOTATE", NR-2, $1, $2, $3}' > phannotate_lambda.tsv`
+```
+phanotate.py -f tabular Lambda_phage_GCF_000840245.1.fasta | awk -v OFS='\t' '!/#/ {print "PHANOTATE", NR-2, $1, $2, $3}' > phannotate_lambda.tsv
+```
 
 ### Glimmer3
 ```
@@ -146,9 +161,11 @@ awk -v OFS='\t' '!/>/ {gsub(/+[0-9]/, "+", $4); gsub(/-[0-9]/, "-", $4); print "
 ```
 
 ### NCBI annotations
-To compare what the NCBI database catagories as a coding region, I downnloaded the accompaning (GFF file)[https://www.ncbi.nlm.nih.gov/assembly/GCF_000840245.1/] and parsed it for input into gggenes.
+To compare what the NCBI database catagories as a coding region, I downnloaded the accompaning [GFF file](https://www.ncbi.nlm.nih.gov/assembly/GCF_000840245.1/) and parsed it for input into gggenes.
 
-`awk '$3=="gene" {print $2, $4, $5, $7}' GCF_000840245.1_ViralProj14204_genomic.gff | awk -v OFS='\t' '{ print $1, NR, $2,$3,$4}' > refseq_lambda.tsv`
+```
+awk '$3=="gene" {print $2, $4, $5, $7}' GCF_000840245.1_ViralProj14204_genomic.gff | awk -v OFS='\t' '{ print $1, NR, $2,$3,$4}' > refseq_lambda.tsv
+```
 
 ### Consenus Gene Caller
 To produce genecalls from this program i used the commands:
@@ -156,7 +173,7 @@ To produce genecalls from this program i used the commands:
 ./genecaller.py -i Lambda_phage_GCF_000840245.1.fasta -o outdir -gc all --trna all --database pvog pfam -p AllvogHMMprofiles/pVOG.hmm -f Pfam-A.hmm
 ./gene_stats.py -i outdir/gene_clusters.tsv -o outdir2
 ```
-I manually looked through each genecall from the `gene_statistics.tsv` file for coding regions and highlighted the ones I think were correct. I have attached my curation results (here)[https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/gene_statistics.xlsx]: Green = probable, Red = unlikely, Blue = maybe (I plotted both to show the difference). I found it easiest to take a page out of the SEA-PHAGES protocol and to plot all the genes separated by indiviual genecallers. Example script is (here)[https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/plot_genes.RScript] if want to do that. Each and every genecall needs to be compared to simular ones to determind if they are correct. Generally I find anything with a score >-3 is more probable and <-3.5 less likely. Sometimes the same gene is genecalled backwards (Glimmer-Prodigal). When I am unsure I usually refered to the gene with the smallest e-val as the correct one. Here are my final genecalls visualised with the gggenes R library.
+I manually looked through each genecall from the `gene_statistics.tsv` file for coding regions and highlighted the ones I think were correct. I have attached my curation results [here](https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/gene_statistics.xlsx): Green = probable, Red = unlikely, Blue = maybe (I plotted both to show the difference). I found it easiest to take a page out of the SEA-PHAGES protocol and to plot all the genes separated by indiviual genecallers. Example script is [here](https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/plot_genes.RScript) if want to do that. Each and every genecall needs to be compared to simular ones to determind if they are correct. Generally I find anything with a score >-3 is more probable and <-3.5 less likely. Sometimes the same gene is genecalled backwards (Glimmer-Prodigal). When I am unsure I usually refered to the gene with the smallest e-val as the correct one. Here are my final genecalls visualised with the gggenes R library.
 
 ```
 require(ggfittext)
@@ -183,10 +200,10 @@ ggplot(lambda, aes(xmin=start, xmax=end, y=genome, fill=Pfam_hit, label=gene, fo
     scale_x_continuous(limits = c(0, 49109), breaks = seq(0, 49109, by=1000)) +
     guides(fill=guide_legend(nrow=5))
 
-ggsave("~/projects/Consensus_Gene_Caller/cgs_lambda_gggenes.png", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
+ggsave("~/projects/Consensus_Gene_Caller/CGS.png", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
 ```
 
-![Consenus Gene Caller Gene Annotation Results](https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/cgs_lambda_gggenes.png)
+![Consenus Gene Caller Gene Annotation Results](https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/CGS_final.png)
 
 ### Comparing all compare genecallers
 All genecalls are concatinated into a single file and compared against the RefSeq hits. Sorry its not in colour, I can't figure out the issue with `fill=gene`.
