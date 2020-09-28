@@ -200,7 +200,7 @@ ggplot(lambda, aes(xmin=start, xmax=end, y=genome, fill=Pfam_hit, label=gene, fo
     scale_x_continuous(limits = c(0, 49109), breaks = seq(0, 49109, by=1000)) +
     guides(fill=guide_legend(nrow=5))
 
-ggsave("~/projects/Consensus_Gene_Caller/CGS.png", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
+ggsave("~/projects/Consensus_Gene_Caller/CGS_final.png", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
 ```
 
 ![Consenus Gene Caller Gene Annotation Results](https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/CGS_final.png)
