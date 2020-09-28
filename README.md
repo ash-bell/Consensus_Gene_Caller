@@ -109,8 +109,10 @@ And I'm using the plyr library for data manipulation
 `conda install -c conda-forge r-plyr`
 
 
+
+
 # Testing
-To show there is a need for a consenus gene caller, I have used off the shelf gene callers and compared their result to using this program. I have used Prodigal, MGA, PHANOTATE, FGS and Glimmer. My test genome is Lambda_phage_GCF_000840245. Results are visualised using the R package gggenes. I have included the code to annotate each genome for transparency.
+To show there is a need for a consenus gene caller, I have used off the shelf gene callers and compared their result to using this program. I have used Prodigal, MGA, PHANOTATE, FGS and Glimmer. My test genome is [Lambda_phage_GCF_000840245](https://www.ncbi.nlm.nih.gov/assembly/GCF_000840245.1/). Results are visualised using the R package [gggenes](https://cran.r-project.org/web/packages/gggenes/vignettes/introduction-to-gggenes.html). I have included the code to annotate each genome for transparency.
 
 ### Prodigal
 `prodigal -i Lambda_phage_GCF_000840245.1.fasta -f gff -p meta -q -m -g 11 | awk -v OFS='\t' '!/#/ {print $2, NR-3, $4, $5, $7}' > Prodigal_lambda.tsv`
@@ -144,7 +146,7 @@ awk -v OFS='\t' '!/>/ {gsub(/+[0-9]/, "+", $4); gsub(/-[0-9]/, "-", $4); print "
 ```
 
 ### NCBI annotations
-Too see what the NCBI database catagories as a coding region, I downnloaded the accompaning (GFF file)[https://www.ncbi.nlm.nih.gov/assembly/GCF_000840245.1/]
+To compare what the NCBI database catagories as a coding region, I downnloaded the accompaning (GFF file)[https://www.ncbi.nlm.nih.gov/assembly/GCF_000840245.1/] and parsed it for input into gggenes.
 
 `awk '$3=="gene" {print $2, $4, $5, $7}' GCF_000840245.1_ViralProj14204_genomic.gff | awk -v OFS='\t' '{ print $1, NR, $2,$3,$4}' > refseq_lambda.tsv`
 
@@ -154,10 +156,7 @@ To produce genecalls from this program i used the commands:
 ./genecaller.py -i Lambda_phage_GCF_000840245.1.fasta -o outdir -gc all --trna all --database pvog pfam -p AllvogHMMprofiles/pVOG.hmm -f Pfam-A.hmm
 ./gene_stats.py -i outdir/gene_clusters.tsv -o outdir2
 ```
-I looked through each genecall from the `gene_statistics.tsv` file for coding regions and highlighted the ones I think were correct. I have attached my curation results here: Green = probable, Red = unlikely, Blue = maybe (I plotted both to show the difference). I found it easiest to take a page out of the SEA-PHAGES protocol and to plot all the genes separated by indiviual genecallers. Script is here if want to do that. Each and every genecall needs to be compared to simular ones to determind if they are correct. Generally I find anything with a score >-3 is more probable and <-3.5 less likely. Sometimes the same gene is genecalled backwards (Glimmer-Prodigal). When I am unsure I usually refered to the gene with the smallest e-val as the correct one. Here are my final genecalls.
-
-
-To view each of the genecalls, I used gggenes, an R library
+I manually looked through each genecall from the `gene_statistics.tsv` file for coding regions and highlighted the ones I think were correct. I have attached my curation results (here)[https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/gene_statistics.xlsx]: Green = probable, Red = unlikely, Blue = maybe (I plotted both to show the difference). I found it easiest to take a page out of the SEA-PHAGES protocol and to plot all the genes separated by indiviual genecallers. Example script is (here)[https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/plot_genes.RScript] if want to do that. Each and every genecall needs to be compared to simular ones to determind if they are correct. Generally I find anything with a score >-3 is more probable and <-3.5 less likely. Sometimes the same gene is genecalled backwards (Glimmer-Prodigal). When I am unsure I usually refered to the gene with the smallest e-val as the correct one. Here are my final genecalls visualised with the gggenes R library.
 
 ```
 require(ggfittext)
@@ -184,7 +183,14 @@ ggplot(lambda, aes(xmin=start, xmax=end, y=genome, fill=Pfam_hit, label=gene, fo
     scale_x_continuous(limits = c(0, 49109), breaks = seq(0, 49109, by=1000)) +
     guides(fill=guide_legend(nrow=5))
 
-ggsave("~/projects/Consensus_Gene_Caller/cgs_lambda_gggenes.pdf", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
+ggsave("~/projects/Consensus_Gene_Caller/cgs_lambda_gggenes.png", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
+```
+
+![Consenus Gene Caller Gene Annotation Results](https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/cgs_lambda_gggenes.png)
+
+### Comparing all compare genecallers
+All genecalls are concatinated into a single file and compared against the RefSeq hits. Sorry its not in colour, I can't figure out the issue with `fill=gene`.
+
 ```
 require(ggfittext)
 require(gggenes)
@@ -200,7 +206,8 @@ lambda$direction <- ifelse(lambda$strand == "+", 1, -1)
 colourCount = length(unique(lambda$gene))
 getPalette = colorRampPalette(brewer.pal(9, "Set1"))
 
-ggplot(lambda, aes(xmin=start, xmax=end, y=genecaller, fill=gene, label=gene, forward=direction)) +
+ggplot(lambda, aes(xmin=start, xmax=end, y=genecaller, label=gene, forward=direction)) +
+#ggplot(lambda, aes(xmin=start, xmax=end, y=genecaller, fill=gene, label=gene, forward=direction)) + # I can't get `fill=gene` to work
     geom_gene_arrow(arrowhead_height = unit(6, "mm"), arrowhead_width = unit(2, "mm"), arrow_body_height = unit(6, "mm")) +
     geom_gene_label(align = "centre") +
     facet_wrap(~ genecaller, scales = "free", ncol = 1) +
@@ -210,4 +217,7 @@ ggplot(lambda, aes(xmin=start, xmax=end, y=genecaller, fill=gene, label=gene, fo
     scale_x_continuous(limits = c(0, 49109), breaks = seq(0, 49109, by=1000)) +
     guides(fill=guide_legend(nrow=5))
 
-ggsave("~/projects/Consensus_Gene_Caller/cgs_lambda_gggenes.pdf", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
+ggsave("~/projects/Consensus_Gene_Caller/cgs_lambda_gggenes.png", width = 48, height = 12, units = "in", limitsize = FALSE, dpi = 150)
+```
+### Results
+![Consenus Gene Caller Gene Annotation Results](https://github.com/ash-bell/Consensus_Gene_Caller/blob/master/cgs_lambda_gggenes.png)
